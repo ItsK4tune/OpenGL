@@ -1,96 +1,120 @@
 #include <iostream>
 #include <cmath>
+#include <chrono>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-const char *vertexShaderSource = "#version 330 core\n"
-                                 "layout (location = 0) in vec3 aPos;\n"
-                                 "void main()\n"
-                                 "{\n"
-                                 "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-                                 "}\0";
+const char *vertexShaderSource = R"(
+#version 330 core
+out vec2 uv;
+void main() {
+    vec2 pos[3] = vec2[](
+        vec2(-1.0, -1.0),
+        vec2(3.0, -1.0),
+        vec2(-1.0, 3.0)
+    );
+    uv = (pos[gl_VertexID] + 1.0) * 0.5;
+    gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);
+}
+)";
 
-const char *fragmentShaderSource = "#version 330 core\n"
-                                   "out vec4 FragColor;\n"
-                                   "void main()\n"
-                                   "{\n"
-                                   "   FragColor = vec4(0.8f, 0.3f, 0.02f, 1.0f);\n"
-                                   "}\n\0";
+const char *fragmentShaderSource = R"(
+#version 330 core
+out vec4 FragColor;
+in vec2 uv;
+
+uniform vec2 iResolution;
+uniform float iTime;
+
+vec3 palette(float t) {
+    vec3 a = vec3(0.5, 0.5, 0.5);
+    vec3 b = vec3(0.5, 0.5, 0.5);
+    vec3 c = vec3(1.0, 1.0, 1.0);
+    vec3 d = vec3(0.263, 0.416, 0.557);
+    return a + b * cos(6.28318 * (c * t + d));
+}
+
+void main() {
+    vec2 fragCoord = uv * iResolution;
+    vec2 uv0 = (fragCoord * 2.0 - iResolution) / iResolution.y;
+    vec2 uv1 = uv0;
+    vec3 finalColor = vec3(0.0);
+
+    for (float i = 0.0; i < 4.0; i++) {
+        uv1 = fract(uv1 * 1.5) - 0.5;
+        float d = length(uv1) * exp(-length(uv0));
+        vec3 col = palette(length(uv0) + i * 0.4 + iTime * 0.4);
+        d = sin(d * 8.0 + iTime) / 8.0;
+        d = abs(d);
+        d = pow(0.01 / d, 1.2);
+        finalColor += col * d;
+    }
+
+    FragColor = vec4(finalColor, 1.0);
+}
+)";
 
 int main()
 {
     glfwInit();
-
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLfloat vertices[] =
-        {
-            -0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f,  // Lower left corner
-            0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f,   // Lower right corner
-            0.0f, 0.5f * float(sqrt(3)) * 2 / 3, 0.0f // Upper corner
-        };
-
     GLFWwindow *window = glfwCreateWindow(800, 600, "OpenGL renderWindow", NULL, NULL);
-    if (window == NULL)
+    if (!window)
     {
-        std::cerr << "Failed to create GLFW window" << std::endl;
+        std::cerr << "Failed to create window\n";
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
-
     gladLoadGL();
 
-    glViewport(0, 0, 800, 600);
+    // VAO tối thiểu để OpenGL core không bị crash
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
 
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
+    // Compile shader
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &vertexShaderSource, NULL);
+    glCompileShader(vs);
 
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fs);
 
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    GLuint VAO, VBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid *)0);
-    glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    glClearColor(0.0f, 0.0f, 1.0f, 0.5f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glfwSwapBuffers(window);
+    auto start = std::chrono::steady_clock::now();
 
     while (!glfwWindowShouldClose(window))
     {
-        glClearColor(0.0f, 0.0f, 1.0f, 0.5f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(shaderProgram);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+
+        auto now = std::chrono::steady_clock::now();
+        float time = std::chrono::duration<float>(now - start).count();
+
+        glUseProgram(program);
+        glUniform2f(glGetUniformLocation(program, "iResolution"), width, height);
+        glUniform1f(glGetUniformLocation(program, "iTime"), time);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3); // Fullscreen triangle
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
-
+    glDeleteProgram(program);
+    glDeleteVertexArrays(1, &vao);
     glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
