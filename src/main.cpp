@@ -23,12 +23,49 @@ int main()
     glfwMakeContextCurrent(window);
     gladLoadGL();
 
-    // VAO tối thiểu để OpenGL core không bị crash
-    GLuint vao;
+    GLuint vao, vbo;
+    float screenW = 800.0f, screenH = 600.0f;
+    float quadW = 400.0f, quadH = 400.0f;
+
+    // Tính tọa độ normalized device coordinates (NDC)
+    float left = (screenW / 2.0f - quadW / 2.0f) / (screenW / 2.0f) - 1.0f;
+    float right = (screenW / 2.0f + quadW / 2.0f) / (screenW / 2.0f) - 1.0f;
+    float top = 1.0f - (screenH / 2.0f - quadH / 2.0f) / (screenH / 2.0f);
+    float bottom = 1.0f - (screenH / 2.0f + quadH / 2.0f) / (screenH / 2.0f);
+
+    // Vertex positions and UVs
+    float vertices[] = {
+        // pos (x, y)      // uv
+        left, bottom, 0.0f, 0.0f,
+        right, bottom, 1.0f, 0.0f,
+        right, top, 1.0f, 1.0f,
+        left, top, 0.0f, 1.0f};
+
+    unsigned int indices[] = {
+        0, 1, 2,
+        2, 3, 0};
+
+    GLuint ebo;
     glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+
     glBindVertexArray(vao);
 
-    // Compile shader
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // pos
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+    // uv
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    GLuint program = glCreateProgram();
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vSrc, NULL);
     glCompileShader(vs);
@@ -36,8 +73,6 @@ int main()
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fs, 1, &fSrc, NULL);
     glCompileShader(fs);
-
-    GLuint program = glCreateProgram();
     glAttachShader(program, vs);
     glAttachShader(program, fs);
     glLinkProgram(program);
@@ -59,7 +94,8 @@ int main()
         glUniform2f(glGetUniformLocation(program, "iResolution"), width, height);
         glUniform1f(glGetUniformLocation(program, "iTime"), time);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3); // Fullscreen triangle
+        glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
