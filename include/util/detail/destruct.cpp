@@ -1,4 +1,4 @@
-#include "util/destruct.h"
+#include "util/destruct.hpp"
 
 void endRender(GLuint &program, GLuint &vao, GLFWwindow *window)
 {

@@ -1,4 +1,4 @@
-#include "util/construct.h"
+#include "util/construct.hpp"
 
 std::string loadShaderSource(const char *filepath)
 {
