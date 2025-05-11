@@ -1,4 +1,35 @@
 #include "util/construct.hpp"
+#include "util/camera.hpp"
+#include "util/input.hpp"
+
+int initWidth = 0;
+int initHeight = 0;
+
+GLFWwindow *createWindow(int width, int height)
+{
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow *window = glfwCreateWindow(width, height, "OpenGL renderWindow", NULL, NULL);
+    if (!window)
+    {
+        std::cerr << "Failed to create window\n";
+        glfwTerminate();
+        return nullptr;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetKeyCallback(window, key_callback);
+    glfwWindowHint(GLFW_DEPTH_BITS, 24);
+    gladLoadGL();
+
+    initWidth = width;
+    initHeight = height;
+
+    return window;
+}
 
 std::string loadShaderSource(const char *filepath)
 {
@@ -14,26 +45,6 @@ std::string loadShaderSource(const char *filepath)
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
-}
-
-void createVAO(GLuint &vao, GLuint &vbo, GLuint &ebo, float *vertices, unsigned int *indices)
-{
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
 }
 
 GLuint compileShader(GLenum type, const std::string &src)
@@ -60,7 +71,33 @@ GLuint createProgram(const char *vsPath, const char *fsPath)
     return program;
 }
 
+const float TARGET_ASPECT = 1.0f / 1.0f;
+bool resizing = false;
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
-    glViewport(0, 0, width, height);
+    if (resizing)
+        return;
+
+    resizing = true;
+
+    if (width != initWidth)
+    {
+        int newHeight = static_cast<int>(width / TARGET_ASPECT);
+        glfwSetWindowSize(window, width, newHeight);
+        initWidth = width;
+    }
+    if (height != initHeight)
+    {
+        int newWidth = static_cast<int>(height * TARGET_ASPECT);
+        glfwSetWindowSize(window, newWidth, height);
+        initHeight = height;
+    }
+
+    int finalWidth, finalHeight;
+    glfwGetFramebufferSize(window, &finalWidth, &finalHeight);
+    glViewport(0, 0, finalWidth, finalHeight);
+    // camera.updateFromWindowSize(finalWidth, finalHeight);
+
+    resizing = false;
 }
