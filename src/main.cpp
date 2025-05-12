@@ -3,120 +3,122 @@
 #include "util/affine.hpp"
 #include "util/input.hpp"
 #include "util/camera.hpp"
+#include "util/objLoader.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
 int main()
 {
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
+    Camera camera(glm::vec3(3.0f, 3.0f, 3.0f), // Vị trí camera
+                  glm::vec3(0.0f, 0.0f, 0.0f), // Mục tiêu của camera (góc nhìn)
+                  glm::vec3(0.0f, 1.0f, 0.0f), // Hướng "up" của camera
+                  45.0f,                       // Góc nhìn (FOV) của camera
+                  800.0f / 600.0f,             // Tỷ lệ khung hình (aspect ratio)
+                  0.1f,                        // Mặt gần (near plane)
+                  100.0f);                     // Mặt xa (far plane)
+
+    std::string filepath = "../shader/cat/Cat_LP3.obj";
+    if (loadObj(filepath, vertices, indices))
+    {
+        std::cout << "OBJ loaded successfully.\n";
+    }
+    else
+    {
+        std::cerr << "Failed to load OBJ.\n";
+    }
+
     GLFWwindow *window = createWindow(400, 400);
-
-    float vertices[] = {
-        -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        -0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        -0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 1.0f,
-        0.5f, -0.5f, 0.5f, 1.0f, 1.0f, 1.0f,
-        0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f,
-        -0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f};
-
-    unsigned int indices[] = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4,
-        0, 1, 5, 5, 4, 0,
-        2, 3, 7, 7, 6, 2,
-        1, 2, 6, 6, 5, 1,
-        4, 7, 3, 3, 0, 4};
-
-    unsigned int edge_indices[] = {
-        0, 1, 1, 2, 2, 3, 3, 0,
-        4, 5, 5, 6, 6, 7, 7, 4,
-        0, 4, 1, 5, 2, 6, 3, 7};
 
     GLuint vao, vaoEdge, vbo, ebo, eboEdge;
     glGenVertexArrays(1, &vao);
-    glGenVertexArrays(1, &vaoEdge);
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
-    glGenBuffers(1, &eboEdge);
+
+    GLuint program = createProgram("shader/cat/cat.vert", "shader/cat/cat.frag");
 
     glBindVertexArray(vao);
+
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    GLuint posAttrib = glGetAttribLocation(program, "aPosition");
+    glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, Position));
+    glEnableVertexAttribArray(posAttrib);
 
-    glBindVertexArray(vaoEdge);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboEdge);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(edge_indices), edge_indices, GL_STATIC_DRAW);
+    GLuint texAttrib = glGetAttribLocation(program, "aTexCoords");
+    glVertexAttribPointer(texAttrib, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, TexCoords));
+    glEnableVertexAttribArray(texAttrib);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    GLuint normAttrib = glGetAttribLocation(program, "aNormal");
+    glVertexAttribPointer(normAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, Normal));
+    glEnableVertexAttribArray(normAttrib);
 
-    GLuint edgeProgram = createProgram("shader/cube/edge.vert", "shader/cube/edge.frag");
-    GLuint program = createProgram("shader/cube/normal.vert", "shader/cube/normal.frag");
+    int width, height, nrChannels;
+    // stbi_set_flip_vertically_on_load(true);
+    unsigned char *data = stbi_load("../shader/cat/Cat_Basecolor.png", &width, &height, &nrChannels, 0);
+    GLuint texture;
+    if (data)
+    {
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        // Set texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cerr << "Failed to load texture\n";
+    }
+
+    glUseProgram(program);
+    GLuint textureLocation = glGetUniformLocation(program, "texture1");
+    glUniform1i(textureLocation, 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
 
     while (!glfwWindowShouldClose(window))
     {
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 model = glm::mat4(1.0f);
-        model = createRotationMatrix(glm::vec3(glm::radians(rotX), glm::radians(rotY), 0.0f));
-
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 100.0f);
-
-        GLuint modelLoc;
-
         glEnable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glDisable(GL_CULL_FACE);
 
+        camera.setPosition(cameraPos);
+        camera.setTarget(cameraPos + cameraFront);
+
+        glm::mat4 model = glm::mat4(1.0f);
+        glm::mat4 affine = createAffineTransformMatrix(
+            glm::vec3(scaleFactor),                                  // scale đều các chiều
+            glm::vec3(glm::radians(rotX), glm::radians(rotY), 0.0f), // rotation XYZ
+            glm::vec3(0)                                             // tịnh tiến
+        );
+        model = affine * model;
+
+        glm::mat4 view = camera.getViewMatrix();
+        glm::mat4 projection = camera.getProjectionMatrix();
+        glm::mat4 mvp = projection * view * model;
+
+        GLuint mvpLocation = glGetUniformLocation(program, "uMVP");
         glUseProgram(program);
-
-        modelLoc = glGetUniformLocation(program, "uModel");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
-        GLuint viewLoc = glGetUniformLocation(program, "uView");
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-        GLuint projLoc = glGetUniformLocation(program, "uProjection");
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        GLint resLoc = glGetUniformLocation(program, "uResolution");
-        glUniform2f(resLoc, static_cast<float>(width), static_cast<float>(height));
+        glUniformMatrix4fv(mvpLocation, 1, GL_FALSE, glm::value_ptr(mvp));
 
         glBindVertexArray(vao);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-        glUseProgram(edgeProgram);
-        modelLoc = glGetUniformLocation(edgeProgram, "uModel");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
-        viewLoc = glGetUniformLocation(edgeProgram, "uView");
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-        projLoc = glGetUniformLocation(edgeProgram, "uProjection");
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glBindVertexArray(vaoEdge);
-        glLineWidth(3.0f);
-        glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-        glEnable(GL_DEPTH_TEST);
+        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

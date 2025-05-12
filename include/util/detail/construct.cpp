@@ -20,8 +20,12 @@ GLFWwindow *createWindow(int width, int height)
         return nullptr;
     }
     glfwMakeContextCurrent(window);
+
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+
     glfwWindowHint(GLFW_DEPTH_BITS, 24);
     gladLoadGL();
 
