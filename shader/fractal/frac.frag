@@ -1,24 +1,30 @@
-#version 330 core
+#version 460 core
+
 out vec4 FragColor;
-in vec2 uv;
 
-uniform vec2 iResolution;
 uniform float iTime;
+uniform vec2 iResolution;
 
+// Hàm tạo bảng màu sử dụng cosine palette
 vec3 palette(float t) {
-    vec3 a = vec3(0.5, 0.5, 0.5);
-    vec3 b = vec3(0.5, 0.5, 0.5);
-    vec3 c = vec3(1.0, 1.0, 1.0);
+    vec3 a = vec3(0.5);
+    vec3 b = vec3(0.5);
+    vec3 c = vec3(1.0);
     vec3 d = vec3(0.263, 0.416, 0.557);
     return a + b * cos(6.28318 * (c * t + d));
 }
 
 void main() {
-    vec2 fragCoord = uv * iResolution;
+    // Lấy tọa độ pixel hiện tại
+    vec2 fragCoord = gl_FragCoord.xy;
+
+    // Tính toán uv0 từ gl_FragCoord và iResolution
     vec2 uv0 = (fragCoord * 2.0 - iResolution) / iResolution.y;
     vec2 uv1 = uv0;
+
     vec3 finalColor = vec3(0.0);
 
+    // Hiệu ứng fractal nhiều lớp
     for (float i = 0.0; i < 4.0; i++) {
         uv1 = fract(uv1 * 1.5) - 0.5;
         float d = length(uv1) * exp(-length(uv0));

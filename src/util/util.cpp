@@ -2,7 +2,7 @@
 
 std::string loadShaderSource(const char *filepath)
 {
-    std::string fullPath = std::string("../") + filepath;
+    std::string fullPath = std::string("../shader/") + filepath;
 
     std::ifstream file(fullPath);
     if (!file.is_open())
